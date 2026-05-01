@@ -1,0 +1,31 @@
+<!-- File: templates/index.html -->
+<!-- Purpose: Public landing page. -->
+{% extends "base.html" %}
+
+{% block title %}CalcApp – Home{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>Calculator BREAD App</h1>
+  <p>Create, read, edit, and delete your calculations with full JWT-secured API access.</p>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="/register">Get Started</a>
+    <a class="btn btn-secondary" href="/login">Login</a>
+  </div>
+</section>
+
+<section class="features">
+  <div class="feature-card">
+    <h3>🔐 Secure</h3>
+    <p>JWT authentication keeps your calculations private.</p>
+  </div>
+  <div class="feature-card">
+    <h3>➕ BREAD Operations</h3>
+    <p>Browse, Read, Edit, Add, and Delete all your calculations.</p>
+  </div>
+  <div class="feature-card">
+    <h3>⚡ Fast</h3>
+    <p>Built on FastAPI for lightning-fast REST API responses.</p>
+  </div>
+</section>
+{% endblock %}

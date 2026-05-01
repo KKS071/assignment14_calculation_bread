@@ -1,0 +1,67 @@
+<!-- File: templates/view_calculation.html -->
+<!-- Purpose: Read a single calculation by ID (BREAD: Read). -->
+{% extends "base.html" %}
+
+{% block title %}CalcApp – View Calculation{% endblock %}
+
+{% block content %}
+<div class="card detail-card">
+  <h2>Calculation Details</h2>
+  <div id="error-msg" class="alert alert-error" style="display:none"></div>
+  <div id="detail-content">
+    <p class="loading-text">Loading…</p>
+  </div>
+  <div class="detail-actions">
+    <a href="/dashboard" class="btn btn-secondary">← Back</a>
+    <a id="edit-link" href="#" class="btn btn-warning" style="display:none">Edit</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const token  = localStorage.getItem("access_token");
+if (!token) window.location.href = "/login";
+
+const calcId = "{{ calc_id }}";
+
+async function loadCalculation() {
+  try {
+    const res = await fetch(`/calculations/${calcId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    if (res.status === 404) {
+      document.getElementById("detail-content").innerHTML =
+        '<p class="error">Calculation not found.</p>';
+      return;
+    }
+    const c = await res.json();
+    renderDetail(c);
+  } catch {
+    document.getElementById("error-msg").textContent = "Failed to load calculation.";
+    document.getElementById("error-msg").style.display = "block";
+  }
+}
+
+function renderDetail(c) {
+  const opLabel = { addition: "Addition (+)", subtraction: "Subtraction (−)",
+                    multiplication: "Multiplication (×)", division: "Division (÷)" };
+  document.getElementById("detail-content").innerHTML = `
+    <table class="detail-table">
+      <tr><th>ID</th><td>${c.id}</td></tr>
+      <tr><th>Operation</th><td>${opLabel[c.type] || c.type}</td></tr>
+      <tr><th>Inputs</th><td>${c.inputs.join(", ")}</td></tr>
+      <tr><th>Result</th><td class="result-value">${c.result}</td></tr>
+      <tr><th>Created</th><td>${new Date(c.created_at).toLocaleString()}</td></tr>
+      <tr><th>Updated</th><td>${new Date(c.updated_at).toLocaleString()}</td></tr>
+    </table>`;
+
+  const editLink = document.getElementById("edit-link");
+  editLink.href = `/dashboard/edit/${c.id}`;
+  editLink.style.display = "inline-block";
+}
+
+loadCalculation();
+</script>
+{% endblock %}

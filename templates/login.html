@@ -1,0 +1,77 @@
+<!-- File: templates/login.html -->
+<!-- Purpose: Login page — posts credentials to /auth/login and stores the JWT. -->
+{% extends "base.html" %}
+
+{% block title %}CalcApp – Login{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+  <h2>Login</h2>
+  <div id="error-msg" class="alert alert-error" style="display:none"></div>
+
+  <div id="login-form">
+    <div class="form-group">
+      <label for="username">Username or Email</label>
+      <input id="username" type="text" placeholder="Enter username or email" autocomplete="username" />
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="Enter password" autocomplete="current-password" />
+    </div>
+    <button class="btn btn-primary btn-full" onclick="handleLogin()">Login</button>
+  </div>
+
+  <p class="auth-link">Don't have an account? <a href="/register">Register</a></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function handleLogin() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+  const errorEl = document.getElementById("error-msg");
+
+  errorEl.style.display = "none";
+
+  if (!username || !password) {
+    showError("Please fill in all fields.");
+    return;
+  }
+
+  try {
+    const res = await fetch("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showError(data.detail || "Login failed.");
+      return;
+    }
+
+    localStorage.setItem("access_token", data.access_token);
+    localStorage.setItem("refresh_token", data.refresh_token);
+    localStorage.setItem("user_id", data.user_id);
+    localStorage.setItem("username", data.username);
+
+    window.location.href = "/dashboard";
+  } catch {
+    showError("Network error. Please try again.");
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById("error-msg");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter") handleLogin();
+});
+</script>
+{% endblock %}

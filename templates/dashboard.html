@@ -1,0 +1,182 @@
+<!-- File: templates/dashboard.html -->
+<!-- Purpose: Main dashboard — calculator form + list of user's saved calculations (Browse + Add). -->
+{% extends "base.html" %}
+
+{% block title %}CalcApp – Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+  <header class="dash-header">
+    <h2>Welcome, <span id="user-greeting">there</span>!</h2>
+    <p class="subtitle">Add a calculation below, then manage your history.</p>
+  </header>
+
+  <!-- Add calculation form -->
+  <section class="card calc-form-card">
+    <h3>New Calculation</h3>
+    <div id="calc-error" class="alert alert-error" style="display:none"></div>
+    <div id="calc-success" class="alert alert-success" style="display:none"></div>
+
+    <div class="calc-form">
+      <div class="form-group">
+        <label for="operation">Operation</label>
+        <select id="operation">
+          <option value="addition">Addition (+)</option>
+          <option value="subtraction">Subtraction (−)</option>
+          <option value="multiplication">Multiplication (×)</option>
+          <option value="division">Division (÷)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="num1">Number 1</label>
+        <input id="num1" type="number" step="any" placeholder="e.g. 10" />
+      </div>
+      <div class="form-group">
+        <label for="num2">Number 2</label>
+        <input id="num2" type="number" step="any" placeholder="e.g. 5" />
+      </div>
+      <button id="calculate-btn" class="btn btn-primary" onclick="addCalculation()">Calculate &amp; Save</button>
+    </div>
+
+    <div id="result-box" class="result-box" style="display:none">
+      Result: <span id="result-value" class="result-value"></span>
+    </div>
+  </section>
+
+  <!-- Browse: saved calculations -->
+  <section class="card">
+    <h3>Your Calculations</h3>
+    <div id="calculations-list">
+      <p class="loading-text">Loading…</p>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const token = localStorage.getItem("access_token");
+if (!token) window.location.href = "/login";
+
+document.getElementById("user-greeting").textContent =
+  localStorage.getItem("username") || "there";
+
+// ── Fetch and render saved calculations (Browse) ──────────────────────────────
+async function loadCalculations() {
+  try {
+    const res = await fetch("/calculations", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401) { window.location.href = "/login"; return; }
+    const calcs = await res.json();
+    renderList(calcs);
+  } catch {
+    document.getElementById("calculations-list").innerHTML =
+      '<p class="error">Failed to load calculations.</p>';
+  }
+}
+
+function renderList(calcs) {
+  const container = document.getElementById("calculations-list");
+  if (!calcs.length) {
+    container.innerHTML = '<p class="empty-msg">No calculations yet. Add one above!</p>';
+    return;
+  }
+  const opSymbol = { addition: "+", subtraction: "−", multiplication: "×", division: "÷" };
+  container.innerHTML = `
+    <table class="calc-table">
+      <thead><tr>
+        <th>Type</th><th>Inputs</th><th>Result</th><th>Created</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+      ${calcs.map(c => `
+        <tr class="calculation-row" data-id="${c.id}">
+          <td class="capitalize">${c.type}</td>
+          <td>${c.inputs.join(` ${opSymbol[c.type] || "?"} `)}</td>
+          <td class="result-cell">${c.result}</td>
+          <td>${new Date(c.created_at).toLocaleDateString()}</td>
+          <td class="action-btns">
+            <a href="/dashboard/view/${c.id}" class="btn btn-sm btn-info view-btn">View</a>
+            <a href="/dashboard/edit/${c.id}" class="btn btn-sm btn-warning edit-btn">Edit</a>
+            <button class="btn btn-sm btn-danger delete-btn" data-action="delete" onclick="deleteCalc('${c.id}', this)">Delete</button>
+          </td>
+        </tr>`).join("")}
+      </tbody>
+    </table>`;
+}
+
+// ── Add (POST /calculations) ──────────────────────────────────────────────────
+async function addCalculation() {
+  const errEl  = document.getElementById("calc-error");
+  const sucEl  = document.getElementById("calc-success");
+  const resBox = document.getElementById("result-box");
+  errEl.style.display = "none";
+  sucEl.style.display = "none";
+  resBox.style.display = "none";
+
+  const type   = document.getElementById("operation").value;
+  const num1   = parseFloat(document.getElementById("num1").value);
+  const num2   = parseFloat(document.getElementById("num2").value);
+
+  if (isNaN(num1) || isNaN(num2)) {
+    errEl.textContent = "Please enter valid numbers.";
+    errEl.style.display = "block";
+    return;
+  }
+  if (type === "division" && num2 === 0) {
+    errEl.textContent = "Cannot divide by zero.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  try {
+    const res = await fetch("/calculations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ type, inputs: [num1, num2] }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const msg = Array.isArray(data.detail)
+        ? data.detail.map(e => e.msg).join("; ")
+        : data.detail || "Failed to create calculation.";
+      errEl.textContent = msg;
+      errEl.style.display = "block";
+      return;
+    }
+    document.getElementById("result-value").textContent = data.result;
+    resBox.style.display = "block";
+    sucEl.textContent = "Calculation saved!";
+    sucEl.style.display = "block";
+    loadCalculations();
+  } catch {
+    errEl.textContent = "Network error.";
+    errEl.style.display = "block";
+  }
+}
+
+// ── Delete (DELETE /calculations/{id}) ───────────────────────────────────────
+async function deleteCalc(id, btn) {
+  if (!confirm("Delete this calculation?")) return;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/calculations/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      loadCalculations();
+    } else {
+      const data = await res.json();
+      alert(data.detail || "Delete failed.");
+      btn.disabled = false;
+    }
+  } catch {
+    alert("Network error.");
+    btn.disabled = false;
+  }
+}
+
+loadCalculations();
+</script>
+{% endblock %}

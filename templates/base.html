@@ -1,0 +1,30 @@
+<!-- File: templates/base.html -->
+<!-- Purpose: Base Jinja2 template; all pages extend this. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}CalcApp{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <a class="brand" href="/">🧮 Kundan's CalcApp</a>
+    <div class="nav-links" id="nav-links">
+      <a href="/" id="nav-home">Home</a>
+      <a href="/dashboard" id="nav-dashboard" style="display:none">Dashboard</a>
+      <a href="/login" id="nav-login">Login</a>
+      <a href="/register" id="nav-register">Register</a>
+      <a href="#" id="nav-logout" style="display:none" onclick="logout()">Logout</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="/static/js/auth.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
