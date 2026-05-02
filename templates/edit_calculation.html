@@ -1,11 +1,12 @@
 <!-- File: templates/edit_calculation.html -->
-<!-- Purpose: Edit — prefills multi-value form, then PUT to update calculation. -->
+<!-- Purpose: Edit — prefills multi-value form from existing calc, then PUT to update. -->
 {% extends "base.html" %}
 {% block title %}CalcApp — Edit Calculation{% endblock %}
 
 {% block content %}
 <div class="card detail-card">
   <h2>Edit Calculation</h2>
+
   <div id="error-msg"   class="alert alert-error"   style="display:none"></div>
   <div id="success-msg" class="alert alert-success" style="display:none"></div>
 
@@ -20,13 +21,15 @@
       </select>
     </div>
     <div class="form-group">
-      <label for="inputs-field">Numbers <span class="text-muted">(comma-separated, min 2)</span></label>
-      <input id="inputs-field" type="text" placeholder="e.g. 10, 5, 2" oninput="renderPills('pills', this.value)" />
+      <label for="inputs-field">
+        Numbers <span class="text-muted">(comma-separated, min 2)</span>
+      </label>
+      <input id="inputs-field" type="text" placeholder="e.g. 10, 5, 2" />
       <div class="inputs-preview" id="pills"></div>
     </div>
     <div class="form-actions">
       <a href="/dashboard" class="btn btn-ghost">Cancel</a>
-      <button id="save-btn" class="btn btn-primary" onclick="saveCalculation()">Save Changes</button>
+      <button id="save-btn" class="btn btn-primary">Save Changes</button>
     </div>
   </div>
 </div>
@@ -35,50 +38,112 @@
 {% block scripts %}
 <script>
 const token  = localStorage.getItem("access_token");
-if (!token) window.location.href = "/login";
+if (!token) { window.location.href = "/login"; }
+
 const calcId = "{{ calc_id }}";
 
-async function loadForEdit() {
-  const res = await authFetch(`/calculations/${calcId}`);
-  if (!res) return;
-  if (res.status === 404) { showMsg("error-msg", "Calculation not found."); return; }
-  const c = await res.json();
-  document.getElementById("operation").value  = c.type;
-  const raw = c.inputs.join(", ");
-  document.getElementById("inputs-field").value = raw;
-  renderPills("pills", raw);
-  document.getElementById("edit-form").style.display = "block";
+/* ── UI helpers ─────────────────────────────────────────────────────────── */
+function setError(msg) {
+  const el = document.getElementById("error-msg");
+  el.textContent = msg;
+  el.style.display = msg ? "block" : "none";
 }
 
+function setSuccess(msg) {
+  const el = document.getElementById("success-msg");
+  el.textContent = msg;
+  el.style.display = msg ? "block" : "none";
+}
+
+function setSaveBusy(busy) {
+  const btn = document.getElementById("save-btn");
+  btn.disabled    = busy;
+  btn.textContent = busy ? "Saving…" : "Save Changes";
+}
+
+/* Live pill preview while typing */
+document.getElementById("inputs-field").addEventListener("input", function () {
+  renderPills("pills", this.value);
+});
+
+/* ── Load existing calculation to prefill form ──────────────────────────── */
+async function loadForEdit() {
+  try {
+    const res = await authFetch(`/calculations/${calcId}`);
+    if (!res) return;
+
+    if (res.status === 404) {
+      setError("Calculation not found.");
+      return;
+    }
+    if (!res.ok) {
+      setError("Failed to load calculation.");
+      return;
+    }
+
+    const c   = await res.json();
+    const raw = c.inputs.join(", ");
+
+    document.getElementById("operation").value    = c.type;
+    document.getElementById("inputs-field").value = raw;
+    renderPills("pills", raw);
+    document.getElementById("edit-form").style.display = "block";
+
+  } catch (err) {
+    setError("Network error — could not load calculation.");
+  }
+}
+
+/* ── Save changes (PUT) ─────────────────────────────────────────────────── */
 async function saveCalculation() {
-  showMsg("error-msg",   "");
-  showMsg("success-msg", "");
+  setError("");
+  setSuccess("");
 
   const type = document.getElementById("operation").value;
   const raw  = document.getElementById("inputs-field").value;
   const nums = parseInputs(raw);
 
-  if (!nums) { showMsg("error-msg", "Enter at least 2 valid numbers separated by commas."); return; }
+  if (!nums) {
+    setError("Enter at least 2 valid numbers separated by commas.");
+    return;
+  }
   if (type === "division" && nums.slice(1).some(n => n === 0)) {
-    showMsg("error-msg", "Cannot divide by zero."); return;
+    setError("Cannot divide by zero.");
+    return;
   }
 
-  const res  = await authFetch(`/calculations/${calcId}`, {
-    method: "PUT",
-    body: JSON.stringify({ type, inputs: nums }),
-  });
-  if (!res) return;
-  const data = await res.json();
+  setSaveBusy(true);
+  try {
+    const res  = await authFetch(`/calculations/${calcId}`, {
+      method: "PUT",
+      body: JSON.stringify({ type, inputs: nums }),
+    });
+    if (!res) return;
 
-  if (!res.ok) {
-    const msg = Array.isArray(data.detail) ? data.detail.map(e=>e.msg).join(" | ") : data.detail||"Update failed.";
-    showMsg("error-msg", msg); return;
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = Array.isArray(data.detail)
+        ? data.detail.map(e => e.msg).join(" | ")
+        : data.detail || "Update failed.";
+      setError(msg);
+      return;
+    }
+
+    setSuccess(`Updated! New result: ${data.result}. Redirecting…`);
+    setTimeout(() => { window.location.href = "/dashboard"; }, 1500);
+
+  } catch (err) {
+    setError("Network error — could not save changes.");
+  } finally {
+    setSaveBusy(false);
   }
-
-  showMsg("success-msg", `Updated! New result: ${data.result}. Redirecting…`);
-  setTimeout(() => window.location.href = "/dashboard", 1500);
 }
 
+/* ── Wire up Save button ────────────────────────────────────────────────── */
+document.getElementById("save-btn").addEventListener("click", saveCalculation);
+
+/* ── Initial load ───────────────────────────────────────────────────────── */
 loadForEdit();
 </script>
 {% endblock %}

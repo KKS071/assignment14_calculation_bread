@@ -1,5 +1,5 @@
 <!-- File: templates/dashboard.html -->
-<!-- Purpose: Main dashboard — Add calculation (multi-value) + Browse list with Edit/Delete/View. -->
+<!-- Purpose: Main dashboard — Add (multi-value) + Browse with Edit/Delete/View per row. -->
 {% extends "base.html" %}
 {% block title %}CalcApp — Dashboard{% endblock %}
 
@@ -9,10 +9,16 @@
   <p class="subtitle">Add a calculation below, then manage your history.</p>
 </div>
 
-<!-- ── Add (POST /calculations) ────────────────────────────────────────── -->
+<!-- ── Add ─────────────────────────────────────────────────────────────── -->
 <div class="card">
   <h3>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+         style="vertical-align:-2px;margin-right:4px">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="16"/>
+      <line x1="8"  y1="12" x2="16" y2="12"/>
+    </svg>
     New Calculation
   </h3>
 
@@ -30,12 +36,14 @@
       </select>
     </div>
     <div class="form-group" style="margin:0">
-      <label for="inputs-field">Numbers <span class="text-muted">(comma-separated, min 2)</span></label>
-      <input id="inputs-field" type="text" placeholder="e.g. 10, 5, 2" oninput="renderPills('pills', this.value)" />
+      <label for="inputs-field">
+        Numbers <span class="text-muted">(comma-separated, min 2)</span>
+      </label>
+      <input id="inputs-field" type="text" placeholder="e.g. 10, 5, 2" />
       <div class="inputs-preview" id="pills"></div>
     </div>
     <div style="padding-bottom:0">
-      <button id="calculate-btn" class="btn btn-primary" onclick="addCalculation()">Calculate &amp; Save</button>
+      <button id="calculate-btn" class="btn btn-primary">Calculate &amp; Save</button>
     </div>
   </div>
 
@@ -44,10 +52,19 @@
   </div>
 </div>
 
-<!-- ── Browse (GET /calculations) ──────────────────────────────────────── -->
+<!-- ── Browse ───────────────────────────────────────────────────────────── -->
 <div class="card">
   <h3>
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+         style="vertical-align:-2px;margin-right:4px">
+      <line x1="8"  y1="6"  x2="21" y2="6"/>
+      <line x1="8"  y1="12" x2="21" y2="12"/>
+      <line x1="8"  y1="18" x2="21" y2="18"/>
+      <line x1="3"  y1="6"  x2="3.01" y2="6"/>
+      <line x1="3"  y1="12" x2="3.01" y2="12"/>
+      <line x1="3"  y1="18" x2="3.01" y2="18"/>
+    </svg>
     Your Calculations
   </h3>
   <div id="calculations-list"><p class="loading-text">Loading…</p></div>
@@ -56,16 +73,51 @@
 
 {% block scripts %}
 <script>
+/* ── Guard: redirect to login if no token ──────────────────────────────── */
 const token = localStorage.getItem("access_token");
-if (!token) window.location.href = "/login";
-document.getElementById("user-greeting").textContent = localStorage.getItem("username") || "there";
+if (!token) { window.location.href = "/login"; }
 
-// ── Browse ────────────────────────────────────────────────────────────────
+document.getElementById("user-greeting").textContent =
+  localStorage.getItem("username") || "there";
+
+/* ── UI helpers ─────────────────────────────────────────────────────────── */
+function setCalcError(msg) {
+  const el = document.getElementById("calc-error");
+  el.textContent = msg;
+  el.style.display = msg ? "block" : "none";
+}
+
+function setCalcSuccess(msg) {
+  const el = document.getElementById("calc-success");
+  el.textContent = msg;
+  el.style.display = msg ? "block" : "none";
+}
+
+function setCalcBusy(busy) {
+  const btn = document.getElementById("calculate-btn");
+  btn.disabled  = busy;
+  btn.textContent = busy ? "Saving…" : "Calculate & Save";
+}
+
+/* Live pill preview while typing */
+document.getElementById("inputs-field").addEventListener("input", function () {
+  renderPills("pills", this.value);
+});
+
+/* ── Browse ─────────────────────────────────────────────────────────────── */
 async function loadCalculations() {
-  const res = await authFetch("/calculations");
-  if (!res) return;
-  if (!res.ok) { document.getElementById("calculations-list").innerHTML = '<p class="error-text">Failed to load.</p>'; return; }
-  renderList(await res.json());
+  const listEl = document.getElementById("calculations-list");
+  try {
+    const res = await authFetch("/calculations");
+    if (!res) return;
+    if (!res.ok) {
+      listEl.innerHTML = '<p class="error-text">Failed to load calculations.</p>';
+      return;
+    }
+    renderList(await res.json());
+  } catch (err) {
+    listEl.innerHTML = '<p class="error-text">Network error loading calculations.</p>';
+  }
 }
 
 function renderList(calcs) {
@@ -74,80 +126,121 @@ function renderList(calcs) {
     el.innerHTML = '<p class="empty-msg">No calculations yet — add one above!</p>';
     return;
   }
+  const rows = calcs.map(c => {
+    const pills = c.inputs
+      .map(n => `<span class="input-pill">${n}</span>`)
+      .join(" ");
+    return `
+      <tr class="calculation-row" data-id="${c.id}">
+        <td>${typeBadge(c.type)}</td>
+        <td>${pills}</td>
+        <td><strong>${c.result}</strong></td>
+        <td>${new Date(c.created_at).toLocaleDateString()}</td>
+        <td class="action-btns">
+          <a href="/dashboard/view/${c.id}" class="btn btn-sm btn-info view-btn">View</a>
+          <a href="/dashboard/edit/${c.id}" class="btn btn-sm btn-warning edit-btn">Edit</a>
+          <button class="btn btn-sm btn-danger delete-btn"
+                  data-id="${c.id}">Delete</button>
+        </td>
+      </tr>`;
+  }).join("");
+
   el.innerHTML = `
     <table class="calc-table">
       <thead><tr>
         <th>Type</th><th>Inputs</th><th>Result</th><th>Date</th><th>Actions</th>
       </tr></thead>
-      <tbody>${calcs.map(row).join("")}</tbody>
+      <tbody>${rows}</tbody>
     </table>`;
+
+  /* Attach delete listeners after the table is in the DOM */
+  el.querySelectorAll(".delete-btn").forEach(btn => {
+    btn.addEventListener("click", function () {
+      deleteCalc(this.dataset.id, this);
+    });
+  });
 }
 
-function row(c) {
-  const pills = c.inputs.map(n => `<span class="input-pill">${n}</span>`).join(" ");
-  return `
-    <tr class="calculation-row" data-id="${c.id}">
-      <td>${typeBadge(c.type)}</td>
-      <td>${pills}</td>
-      <td class="result-cell"><strong>${c.result}</strong></td>
-      <td>${new Date(c.created_at).toLocaleDateString()}</td>
-      <td class="action-btns">
-        <a href="/dashboard/view/${c.id}" class="btn btn-sm btn-info view-btn">View</a>
-        <a href="/dashboard/edit/${c.id}" class="btn btn-sm btn-warning edit-btn">Edit</a>
-        <button class="btn btn-sm btn-danger delete-btn" data-action="delete" onclick="deleteCalc('${c.id}',this)">Delete</button>
-      </td>
-    </tr>`;
-}
-
-// ── Add ───────────────────────────────────────────────────────────────────
+/* ── Add ────────────────────────────────────────────────────────────────── */
 async function addCalculation() {
-  showMsg("calc-error",   "");
-  showMsg("calc-success", "");
+  setCalcError("");
+  setCalcSuccess("");
   document.getElementById("result-box").style.display = "none";
 
   const type = document.getElementById("operation").value;
   const raw  = document.getElementById("inputs-field").value;
   const nums = parseInputs(raw);
 
-  if (!nums) { showMsg("calc-error", "Enter at least 2 valid numbers separated by commas."); return; }
+  if (!nums) {
+    setCalcError("Enter at least 2 valid numbers separated by commas.");
+    return;
+  }
   if (type === "division" && nums.slice(1).some(n => n === 0)) {
-    showMsg("calc-error", "Cannot divide by zero."); return;
+    setCalcError("Cannot divide by zero.");
+    return;
   }
 
-  const res  = await authFetch("/calculations", {
-    method: "POST",
-    body: JSON.stringify({ type, inputs: nums }),
-  });
-  if (!res) return;
-  const data = await res.json();
+  setCalcBusy(true);
+  try {
+    const res  = await authFetch("/calculations", {
+      method: "POST",
+      body: JSON.stringify({ type, inputs: nums }),
+    });
+    if (!res) return;
 
-  if (!res.ok) {
-    const msg = Array.isArray(data.detail) ? data.detail.map(e => e.msg).join(" | ") : data.detail || "Failed.";
-    showMsg("calc-error", msg); return;
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = Array.isArray(data.detail)
+        ? data.detail.map(e => e.msg).join(" | ")
+        : data.detail || "Failed to create calculation.";
+      setCalcError(msg);
+      return;
+    }
+
+    document.getElementById("result-value").textContent = data.result;
+    document.getElementById("result-box").style.display = "flex";
+    setCalcSuccess(
+      `✓ Saved! ${data.type} of [${data.inputs.join(", ")}] = ${data.result}`
+    );
+    document.getElementById("inputs-field").value = "";
+    document.getElementById("pills").innerHTML    = "";
+    loadCalculations();
+
+  } catch (err) {
+    setCalcError("Network error — could not save calculation.");
+  } finally {
+    setCalcBusy(false);
   }
-
-  document.getElementById("result-value").textContent = data.result;
-  document.getElementById("result-box").style.display  = "flex";
-  showMsg("calc-success", `✓ Saved! ${data.type} of [${data.inputs.join(", ")}] = ${data.result}`);
-  document.getElementById("inputs-field").value = "";
-  document.getElementById("pills").innerHTML    = "";
-  loadCalculations();
 }
 
-// ── Delete ────────────────────────────────────────────────────────────────
+/* ── Delete ─────────────────────────────────────────────────────────────── */
 async function deleteCalc(id, btn) {
   if (!confirm("Delete this calculation?")) return;
-  btn.disabled = true;
-  const res = await authFetch(`/calculations/${id}`, { method: "DELETE" });
-  if (!res) return;
-  if (res.ok) { loadCalculations(); }
-  else {
-    const d = await res.json();
-    alert(d.detail || "Delete failed.");
-    btn.disabled = false;
+  btn.disabled    = true;
+  btn.textContent = "Deleting…";
+  try {
+    const res = await authFetch(`/calculations/${id}`, { method: "DELETE" });
+    if (!res) return;
+    if (res.ok) {
+      loadCalculations();
+    } else {
+      const data = await res.json();
+      alert(data.detail || "Delete failed.");
+      btn.disabled    = false;
+      btn.textContent = "Delete";
+    }
+  } catch (err) {
+    alert("Network error — delete failed.");
+    btn.disabled    = false;
+    btn.textContent = "Delete";
   }
 }
 
+/* ── Wire up static Calculate button ───────────────────────────────────── */
+document.getElementById("calculate-btn").addEventListener("click", addCalculation);
+
+/* ── Initial load ───────────────────────────────────────────────────────── */
 loadCalculations();
 </script>
 {% endblock %}

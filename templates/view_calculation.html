@@ -6,8 +6,10 @@
 {% block content %}
 <div class="card detail-card">
   <h2>Calculation Details</h2>
+
   <div id="error-msg" class="alert alert-error" style="display:none"></div>
   <div id="detail-content"><p class="loading-text">Loading…</p></div>
+
   <div class="detail-actions">
     <a href="/dashboard" class="btn btn-ghost">← Back</a>
     <a id="edit-link" href="#" class="btn btn-warning" style="display:none">Edit</a>
@@ -18,33 +20,91 @@
 {% block scripts %}
 <script>
 const token  = localStorage.getItem("access_token");
-if (!token) window.location.href = "/login";
+if (!token) { window.location.href = "/login"; }
+
 const calcId = "{{ calc_id }}";
 
-async function load() {
-  const res = await authFetch(`/calculations/${calcId}`);
-  if (!res) return;
-  if (res.status === 404) {
-    document.getElementById("detail-content").innerHTML = '<p class="error-text">Calculation not found.</p>';
-    return;
+async function loadCalculation() {
+  const contentEl = document.getElementById("detail-content");
+  const errorEl   = document.getElementById("error-msg");
+
+  try {
+    const res = await authFetch(`/calculations/${calcId}`);
+    if (!res) return;
+
+    if (res.status === 404) {
+      contentEl.innerHTML = '<p class="error-text">Calculation not found.</p>';
+      return;
+    }
+    if (!res.ok) {
+      errorEl.textContent    = "Failed to load calculation.";
+      errorEl.style.display  = "block";
+      contentEl.innerHTML    = "";
+      return;
+    }
+
+    const c = await res.json();
+    renderDetail(c);
+
+  } catch (err) {
+    errorEl.textContent   = "Network error — could not load calculation.";
+    errorEl.style.display = "block";
+    contentEl.innerHTML   = "";
   }
-  const c = await res.json();
-  const opLabel = { addition:"Addition (+)", subtraction:"Subtraction (−)", multiplication:"Multiplication (×)", division:"Division (÷)" };
-  const pills = c.inputs.map(n => `<span class="input-pill">${n}</span>`).join(" ");
+}
+
+function renderDetail(c) {
+  const opLabel = {
+    addition:       "Addition (+)",
+    subtraction:    "Subtraction (−)",
+    multiplication: "Multiplication (×)",
+    division:       "Division (÷)",
+  };
+
+  const pills = c.inputs
+    .map(n => `<span class="input-pill">${n}</span>`)
+    .join(" ");
+
+  const expression =
+    c.inputs.join(` ${opSymbol(c.type)} `) + " = " + c.result;
+
   document.getElementById("detail-content").innerHTML = `
     <table class="detail-table">
-      <tr><th>ID</th>        <td style="font-size:.8rem;word-break:break-all">${c.id}</td></tr>
-      <tr><th>Operation</th> <td>${typeBadge(c.type)} — ${opLabel[c.type]||c.type}</td></tr>
-      <tr><th>Inputs</th>    <td>${pills}</td></tr>
-      <tr><th>Expression</th><td>${c.inputs.join(" "+opSymbol(c.type)+" ")} = <strong>${c.result}</strong></td></tr>
-      <tr><th>Result</th>    <td class="result-value">${c.result}</td></tr>
-      <tr><th>Created</th>   <td>${new Date(c.created_at).toLocaleString()}</td></tr>
-      <tr><th>Updated</th>   <td>${new Date(c.updated_at).toLocaleString()}</td></tr>
+      <tr>
+        <th>ID</th>
+        <td style="font-size:.8rem;word-break:break-all">${c.id}</td>
+      </tr>
+      <tr>
+        <th>Operation</th>
+        <td>${typeBadge(c.type)} — ${opLabel[c.type] || c.type}</td>
+      </tr>
+      <tr>
+        <th>Inputs</th>
+        <td>${pills}</td>
+      </tr>
+      <tr>
+        <th>Expression</th>
+        <td><code>${expression}</code></td>
+      </tr>
+      <tr>
+        <th>Result</th>
+        <td class="result-value">${c.result}</td>
+      </tr>
+      <tr>
+        <th>Created</th>
+        <td>${new Date(c.created_at).toLocaleString()}</td>
+      </tr>
+      <tr>
+        <th>Updated</th>
+        <td>${new Date(c.updated_at).toLocaleString()}</td>
+      </tr>
     </table>`;
-  const lnk = document.getElementById("edit-link");
-  lnk.href = `/dashboard/edit/${c.id}`;
-  lnk.style.display = "inline-flex";
+
+  const editLink       = document.getElementById("edit-link");
+  editLink.href        = `/dashboard/edit/${c.id}`;
+  editLink.style.display = "inline-flex";
 }
-load();
+
+loadCalculation();
 </script>
 {% endblock %}
