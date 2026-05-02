@@ -42,13 +42,14 @@
   </div>
   <div class="form-group">
     <label for="password">Password</label>
-    <input id="password" type="password" placeholder="Min 8 chars, upper, lower, digit, symbol" autocomplete="new-password" />
+    <input id="password" type="password" placeholder="Min 8 chars — upper, lower, digit, symbol" autocomplete="new-password" />
   </div>
   <div class="form-group">
     <label for="confirm_password">Confirm Password</label>
     <input id="confirm_password" type="password" placeholder="Repeat password" autocomplete="new-password" />
   </div>
-  <button class="btn btn-primary btn-full" onclick="handleRegister()">Create Account</button>
+
+  <button id="register-btn" class="btn btn-primary btn-full">Create Account</button>
 
   <p class="auth-link">Already have an account? <a href="/login">Login</a></p>
 </div>
@@ -56,9 +57,27 @@
 
 {% block scripts %}
 <script>
+function setError(msg) {
+  const el = document.getElementById("error-msg");
+  el.textContent = msg;
+  el.style.display = msg ? "block" : "none";
+}
+
+function setSuccess(msg) {
+  const el = document.getElementById("success-msg");
+  el.textContent = msg;
+  el.style.display = msg ? "block" : "none";
+}
+
+function setBusy(busy) {
+  const btn = document.getElementById("register-btn");
+  btn.disabled = busy;
+  btn.textContent = busy ? "Creating account…" : "Create Account";
+}
+
 async function handleRegister() {
-  showMsg("error-msg",   "");
-  showMsg("success-msg", "");
+  setError("");
+  setSuccess("");
 
   const first_name       = document.getElementById("first_name").value.trim();
   const last_name        = document.getElementById("last_name").value.trim();
@@ -67,32 +86,57 @@ async function handleRegister() {
   const password         = document.getElementById("password").value;
   const confirm_password = document.getElementById("confirm_password").value;
 
+  /* ── Client-side validation ── */
   if (!first_name || !last_name || !email || !username || !password || !confirm_password) {
-    showMsg("error-msg", "All fields are required."); return;
+    setError("All fields are required."); return;
   }
   if (password !== confirm_password) {
-    showMsg("error-msg", "Passwords do not match."); return;
+    setError("Passwords do not match."); return;
   }
   if (password.length < 8) {
-    showMsg("error-msg", "Password must be at least 8 characters."); return;
+    setError("Password must be at least 8 characters."); return;
+  }
+  if (!/[A-Z]/.test(password)) {
+    setError("Password must contain at least one uppercase letter."); return;
+  }
+  if (!/[a-z]/.test(password)) {
+    setError("Password must contain at least one lowercase letter."); return;
+  }
+  if (!/[0-9]/.test(password)) {
+    setError("Password must contain at least one digit."); return;
+  }
+  if (!/[!@#$%^&*()\-_=+\[\]{}|;:,.<>?]/.test(password)) {
+    setError("Password must contain at least one special character."); return;
   }
 
-  const res  = await fetch("/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ first_name, last_name, email, username, password, confirm_password }),
-  });
-  const data = await res.json();
+  setBusy(true);
+  try {
+    const res = await fetch("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ first_name, last_name, email, username, password, confirm_password }),
+    });
 
-  if (!res.ok) {
-    const detail = Array.isArray(data.detail)
-      ? data.detail.map(e => e.msg).join(" | ")
-      : data.detail || "Registration failed.";
-    showMsg("error-msg", detail); return;
+    const data = await res.json();
+
+    if (!res.ok) {
+      const detail = Array.isArray(data.detail)
+        ? data.detail.map(e => e.msg).join(" | ")
+        : data.detail || "Registration failed.";
+      setError(detail);
+      return;
+    }
+
+    setSuccess("Account created! Redirecting to login…");
+    setTimeout(() => { window.location.href = "/login"; }, 1500);
+
+  } catch (err) {
+    setError("Network error — is the server running?");
+  } finally {
+    setBusy(false);
   }
-
-  showMsg("success-msg", "Account created! Redirecting to login…");
-  setTimeout(() => window.location.href = "/login", 1500);
 }
+
+document.getElementById("register-btn").addEventListener("click", handleRegister);
 </script>
 {% endblock %}
