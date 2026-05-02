@@ -1,5 +1,5 @@
 <!-- File: templates/view_calculation.html -->
-<!-- Purpose: Read — show full details of a single calculation. -->
+<!-- Purpose: Read — show full details of one calculation. Self-contained JS. -->
 {% extends "base.html" %}
 {% block title %}CalcApp — View Calculation{% endblock %}
 
@@ -19,92 +19,90 @@
 
 {% block scripts %}
 <script>
-const token  = localStorage.getItem("access_token");
-if (!token) { window.location.href = "/login"; }
+document.addEventListener("DOMContentLoaded", function () {
 
-const calcId = "{{ calc_id }}";
+  var token  = localStorage.getItem("access_token");
+  if (!token) { window.location.href = "/login"; return; }
 
-async function loadCalculation() {
-  const contentEl = document.getElementById("detail-content");
-  const errorEl   = document.getElementById("error-msg");
+  var calcId = "{{ calc_id }}";
 
-  try {
-    const res = await authFetch(`/calculations/${calcId}`);
-    if (!res) return;
-
-    if (res.status === 404) {
-      contentEl.innerHTML = '<p class="error-text">Calculation not found.</p>';
-      return;
-    }
-    if (!res.ok) {
-      errorEl.textContent    = "Failed to load calculation.";
-      errorEl.style.display  = "block";
-      contentEl.innerHTML    = "";
-      return;
-    }
-
-    const c = await res.json();
-    renderDetail(c);
-
-  } catch (err) {
-    errorEl.textContent   = "Network error — could not load calculation.";
-    errorEl.style.display = "block";
-    contentEl.innerHTML   = "";
-  }
-}
-
-function renderDetail(c) {
-  const opLabel = {
+  var opLabels = {
     addition:       "Addition (+)",
-    subtraction:    "Subtraction (−)",
-    multiplication: "Multiplication (×)",
-    division:       "Division (÷)",
+    subtraction:    "Subtraction (-)",
+    multiplication: "Multiplication (*)",
+    division:       "Division (/)"
   };
 
-  const pills = c.inputs
-    .map(n => `<span class="input-pill">${n}</span>`)
-    .join(" ");
+  var opSymbols = {
+    addition: "+", subtraction: "-", multiplication: "*", division: "/"
+  };
 
-  const expression =
-    c.inputs.join(` ${opSymbol(c.type)} `) + " = " + c.result;
+  function showError(msg) {
+    var el = document.getElementById("error-msg");
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
+  }
 
-  document.getElementById("detail-content").innerHTML = `
-    <table class="detail-table">
-      <tr>
-        <th>ID</th>
-        <td style="font-size:.8rem;word-break:break-all">${c.id}</td>
-      </tr>
-      <tr>
-        <th>Operation</th>
-        <td>${typeBadge(c.type)} — ${opLabel[c.type] || c.type}</td>
-      </tr>
-      <tr>
-        <th>Inputs</th>
-        <td>${pills}</td>
-      </tr>
-      <tr>
-        <th>Expression</th>
-        <td><code>${expression}</code></td>
-      </tr>
-      <tr>
-        <th>Result</th>
-        <td class="result-value">${c.result}</td>
-      </tr>
-      <tr>
-        <th>Created</th>
-        <td>${new Date(c.created_at).toLocaleString()}</td>
-      </tr>
-      <tr>
-        <th>Updated</th>
-        <td>${new Date(c.updated_at).toLocaleString()}</td>
-      </tr>
-    </table>`;
+  function apiFetch(url) {
+    return fetch(url, {
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }
+    });
+  }
 
-  const editLink       = document.getElementById("edit-link");
-  editLink.href        = `/dashboard/edit/${c.id}`;
-  editLink.style.display = "inline-flex";
-}
+  function renderDetail(c) {
+    var pills = c.inputs.map(function (n) {
+      return '<span class="input-pill">' + n + "</span>";
+    }).join(" ");
 
-loadCalculation();
+    var sym        = opSymbols[c.type] || "?";
+    var expression = c.inputs.join(" " + sym + " ") + " = " + c.result;
+
+    document.getElementById("detail-content").innerHTML =
+      '<table class="detail-table">' +
+        "<tr><th>ID</th>" +
+            '<td style="font-size:.8rem;word-break:break-all">' + c.id + "</td></tr>" +
+        "<tr><th>Operation</th>" +
+            '<td><span class="badge badge-' + c.type + '">' + c.type + "</span>" +
+            " — " + (opLabels[c.type] || c.type) + "</td></tr>" +
+        "<tr><th>Inputs</th><td>" + pills + "</td></tr>" +
+        "<tr><th>Expression</th><td><code>" + expression + "</code></td></tr>" +
+        '<tr><th>Result</th><td class="result-value">' + c.result + "</td></tr>" +
+        "<tr><th>Created</th><td>" + new Date(c.created_at).toLocaleString() + "</td></tr>" +
+        "<tr><th>Updated</th><td>" + new Date(c.updated_at).toLocaleString() + "</td></tr>" +
+      "</table>";
+
+    var editLink         = document.getElementById("edit-link");
+    editLink.href        = "/dashboard/edit/" + c.id;
+    editLink.style.display = "inline-flex";
+  }
+
+  function loadCalculation() {
+    apiFetch("/calculations/" + calcId)
+      .then(function (res) {
+        if (res.status === 401) { window.location.href = "/login"; return; }
+        if (res.status === 404) {
+          document.getElementById("detail-content").innerHTML =
+            '<p class="error-text">Calculation not found.</p>';
+          return;
+        }
+        return res.json().then(function (data) {
+          if (!res.ok) {
+            showError("Failed to load calculation.");
+            document.getElementById("detail-content").innerHTML = "";
+            return;
+          }
+          renderDetail(data);
+        });
+      })
+      .catch(function (err) {
+        console.error("View error:", err);
+        showError("Network error — could not load calculation.");
+        document.getElementById("detail-content").innerHTML = "";
+      });
+  }
+
+  loadCalculation();
+
+}); /* end DOMContentLoaded */
 </script>
 {% endblock %}

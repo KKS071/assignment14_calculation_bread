@@ -1,5 +1,5 @@
 <!-- File: templates/base.html -->
-<!-- Purpose: Base layout — calculator brand icon, sticky navbar, shared scripts. -->
+<!-- Purpose: Base layout — SVG calculator brand, sticky navbar, shared auth.js (navbar only). -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,24 +11,21 @@
 <body>
   <nav class="navbar">
     <a class="brand" href="/">
-      <!-- Calculator icon -->
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="4" y="2" width="16" height="20" rx="2"/>
-        <line x1="8" y1="6" x2="16" y2="6"/>
-        <line x1="8" y1="10" x2="10" y2="10"/>
-        <line x1="14" y1="10" x2="16" y2="10"/>
-        <line x1="8" y1="14" x2="10" y2="14"/>
-        <line x1="14" y1="14" x2="16" y2="14"/>
-        <line x1="8" y1="18" x2="10" y2="18"/>
-        <line x1="14" y1="18" x2="16" y2="18"/>
+        <line x1="8" y1="6"  x2="16" y2="6"/>
+        <line x1="8" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="16" y2="10"/>
+        <line x1="8" y1="14" x2="10" y2="14"/><line x1="14" y1="14" x2="16" y2="14"/>
+        <line x1="8" y1="18" x2="10" y2="18"/><line x1="14" y1="18" x2="16" y2="18"/>
       </svg>
       CalcApp
     </a>
     <div class="nav-links">
       <a href="/">Home</a>
       <a href="/dashboard" id="nav-dashboard" style="display:none">Dashboard</a>
-      <a href="/login"    id="nav-login">Login</a>
-      <a href="/register" id="nav-register">Register</a>
+      <a href="/login"     id="nav-login">Login</a>
+      <a href="/register"  id="nav-register">Register</a>
       <a href="#" id="nav-logout" style="display:none" onclick="logout()">Logout</a>
     </div>
   </nav>
@@ -37,6 +34,7 @@
     {% block content %}{% endblock %}
   </main>
 
+  <!-- auth.js only manages the navbar and logout; all page logic is inline -->
   <script src="/static/js/auth.js"></script>
   {% block scripts %}{% endblock %}
 </body>

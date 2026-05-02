@@ -1,20 +1,18 @@
 <!-- File: templates/register.html -->
-<!-- Purpose: Registration page — validates inputs client-side then posts to /auth/register. -->
+<!-- Purpose: Registration page. All JS self-contained, DOMContentLoaded, plain fetch. -->
 {% extends "base.html" %}
 {% block title %}CalcApp — Register{% endblock %}
 
 {% block content %}
 <div class="auth-card">
   <div class="auth-icon">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb"
+         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
       <rect x="4" y="2" width="16" height="20" rx="2"/>
       <line x1="8" y1="6" x2="16" y2="6"/>
-      <line x1="8" y1="10" x2="10" y2="10"/>
-      <line x1="14" y1="10" x2="16" y2="10"/>
-      <line x1="8" y1="14" x2="10" y2="14"/>
-      <line x1="14" y1="14" x2="16" y2="14"/>
-      <line x1="8" y1="18" x2="10" y2="18"/>
-      <line x1="14" y1="18" x2="16" y2="18"/>
+      <line x1="8" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="16" y2="10"/>
+      <line x1="8" y1="14" x2="10" y2="14"/><line x1="14" y1="14" x2="16" y2="14"/>
+      <line x1="8" y1="18" x2="10" y2="18"/><line x1="14" y1="18" x2="16" y2="18"/>
     </svg>
   </div>
   <h2>Create Account</h2>
@@ -42,101 +40,110 @@
   </div>
   <div class="form-group">
     <label for="password">Password</label>
-    <input id="password" type="password" placeholder="Min 8 chars — upper, lower, digit, symbol" autocomplete="new-password" />
+    <input id="password" type="password"
+           placeholder="Min 8 chars — uppercase, lowercase, digit, symbol"
+           autocomplete="new-password" />
   </div>
   <div class="form-group">
     <label for="confirm_password">Confirm Password</label>
-    <input id="confirm_password" type="password" placeholder="Repeat password" autocomplete="new-password" />
+    <input id="confirm_password" type="password" placeholder="Repeat password"
+           autocomplete="new-password" />
   </div>
 
   <button id="register-btn" class="btn btn-primary btn-full">Create Account</button>
-
   <p class="auth-link">Already have an account? <a href="/login">Login</a></p>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function setError(msg) {
-  const el = document.getElementById("error-msg");
-  el.textContent = msg;
-  el.style.display = msg ? "block" : "none";
-}
+document.addEventListener("DOMContentLoaded", function () {
 
-function setSuccess(msg) {
-  const el = document.getElementById("success-msg");
-  el.textContent = msg;
-  el.style.display = msg ? "block" : "none";
-}
-
-function setBusy(busy) {
-  const btn = document.getElementById("register-btn");
-  btn.disabled = busy;
-  btn.textContent = busy ? "Creating account…" : "Create Account";
-}
-
-async function handleRegister() {
-  setError("");
-  setSuccess("");
-
-  const first_name       = document.getElementById("first_name").value.trim();
-  const last_name        = document.getElementById("last_name").value.trim();
-  const email            = document.getElementById("email").value.trim();
-  const username         = document.getElementById("username").value.trim();
-  const password         = document.getElementById("password").value;
-  const confirm_password = document.getElementById("confirm_password").value;
-
-  /* ── Client-side validation ── */
-  if (!first_name || !last_name || !email || !username || !password || !confirm_password) {
-    setError("All fields are required."); return;
-  }
-  if (password !== confirm_password) {
-    setError("Passwords do not match."); return;
-  }
-  if (password.length < 8) {
-    setError("Password must be at least 8 characters."); return;
-  }
-  if (!/[A-Z]/.test(password)) {
-    setError("Password must contain at least one uppercase letter."); return;
-  }
-  if (!/[a-z]/.test(password)) {
-    setError("Password must contain at least one lowercase letter."); return;
-  }
-  if (!/[0-9]/.test(password)) {
-    setError("Password must contain at least one digit."); return;
-  }
-  if (!/[!@#$%^&*()\-_=+\[\]{}|;:,.<>?]/.test(password)) {
-    setError("Password must contain at least one special character."); return;
+  function showError(msg) {
+    var el = document.getElementById("error-msg");
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
   }
 
-  setBusy(true);
-  try {
-    const res = await fetch("/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ first_name, last_name, email, username, password, confirm_password }),
-    });
+  function showSuccess(msg) {
+    var el = document.getElementById("success-msg");
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
+  }
 
-    const data = await res.json();
+  function setBusy(busy) {
+    var btn = document.getElementById("register-btn");
+    btn.disabled = busy;
+    btn.textContent = busy ? "Creating account…" : "Create Account";
+  }
 
-    if (!res.ok) {
-      const detail = Array.isArray(data.detail)
-        ? data.detail.map(e => e.msg).join(" | ")
-        : data.detail || "Registration failed.";
-      setError(detail);
-      return;
+  function doRegister() {
+    showError("");
+    showSuccess("");
+
+    var first_name       = document.getElementById("first_name").value.trim();
+    var last_name        = document.getElementById("last_name").value.trim();
+    var email            = document.getElementById("email").value.trim();
+    var username         = document.getElementById("username").value.trim();
+    var password         = document.getElementById("password").value;
+    var confirm_password = document.getElementById("confirm_password").value;
+
+    if (!first_name || !last_name || !email || !username || !password || !confirm_password) {
+      showError("All fields are required."); return;
+    }
+    if (password !== confirm_password) {
+      showError("Passwords do not match."); return;
+    }
+    if (password.length < 8) {
+      showError("Password must be at least 8 characters."); return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      showError("Password must contain at least one uppercase letter."); return;
+    }
+    if (!/[a-z]/.test(password)) {
+      showError("Password must contain at least one lowercase letter."); return;
+    }
+    if (!/[0-9]/.test(password)) {
+      showError("Password must contain at least one digit."); return;
+    }
+    if (!/[!@#$%^&*()\-_=+\[\]{}|;:,.<>?]/.test(password)) {
+      showError("Password must contain at least one special character."); return;
     }
 
-    setSuccess("Account created! Redirecting to login…");
-    setTimeout(() => { window.location.href = "/login"; }, 1500);
+    setBusy(true);
 
-  } catch (err) {
-    setError("Network error — is the server running?");
-  } finally {
-    setBusy(false);
+    fetch("/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        first_name: first_name, last_name: last_name,
+        email: email, username: username,
+        password: password, confirm_password: confirm_password
+      })
+    })
+    .then(function (res) {
+      return res.json().then(function (data) {
+        if (!res.ok) {
+          var detail = Array.isArray(data.detail)
+            ? data.detail.map(function (e) { return e.msg; }).join(" | ")
+            : (data.detail || "Registration failed.");
+          showError(detail);
+          setBusy(false);
+          return;
+        }
+        showSuccess("Account created! Redirecting to login…");
+        setTimeout(function () { window.location.href = "/login"; }, 1500);
+      });
+    })
+    .catch(function (err) {
+      console.error("Register error:", err);
+      showError("Network error — is the server running?");
+      setBusy(false);
+    });
   }
-}
 
-document.getElementById("register-btn").addEventListener("click", handleRegister);
+  document.getElementById("register-btn").addEventListener("click", doRegister);
+
+});
 </script>
 {% endblock %}

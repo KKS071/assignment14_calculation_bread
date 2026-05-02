@@ -1,5 +1,5 @@
 <!-- File: templates/edit_calculation.html -->
-<!-- Purpose: Edit — prefills multi-value form from existing calc, then PUT to update. -->
+<!-- Purpose: Edit — prefills multi-value form, then PUT to update. Self-contained JS. -->
 {% extends "base.html" %}
 {% block title %}CalcApp — Edit Calculation{% endblock %}
 
@@ -13,16 +13,16 @@
   <div id="edit-form" style="display:none">
     <div class="form-group">
       <label for="operation">Operation</label>
-      <select id="operation" name="type">
+      <select id="operation">
         <option value="addition">Addition (+)</option>
-        <option value="subtraction">Subtraction (−)</option>
-        <option value="multiplication">Multiplication (×)</option>
-        <option value="division">Division (÷)</option>
+        <option value="subtraction">Subtraction (-)</option>
+        <option value="multiplication">Multiplication (*)</option>
+        <option value="division">Division (/)</option>
       </select>
     </div>
     <div class="form-group">
-      <label for="inputs-field">
-        Numbers <span class="text-muted">(comma-separated, min 2)</span>
+      <label for="inputs-field">Numbers
+        <span class="text-muted">(comma-separated, min 2)</span>
       </label>
       <input id="inputs-field" type="text" placeholder="e.g. 10, 5, 2" />
       <div class="inputs-preview" id="pills"></div>
@@ -37,113 +37,141 @@
 
 {% block scripts %}
 <script>
-const token  = localStorage.getItem("access_token");
-if (!token) { window.location.href = "/login"; }
+document.addEventListener("DOMContentLoaded", function () {
 
-const calcId = "{{ calc_id }}";
+  var token  = localStorage.getItem("access_token");
+  if (!token) { window.location.href = "/login"; return; }
 
-/* ── UI helpers ─────────────────────────────────────────────────────────── */
-function setError(msg) {
-  const el = document.getElementById("error-msg");
-  el.textContent = msg;
-  el.style.display = msg ? "block" : "none";
-}
+  var calcId = "{{ calc_id }}";
 
-function setSuccess(msg) {
-  const el = document.getElementById("success-msg");
-  el.textContent = msg;
-  el.style.display = msg ? "block" : "none";
-}
+  function showError(msg) {
+    var el = document.getElementById("error-msg");
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
+  }
 
-function setSaveBusy(busy) {
-  const btn = document.getElementById("save-btn");
-  btn.disabled    = busy;
-  btn.textContent = busy ? "Saving…" : "Save Changes";
-}
+  function showSuccess(msg) {
+    var el = document.getElementById("success-msg");
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
+  }
 
-/* Live pill preview while typing */
-document.getElementById("inputs-field").addEventListener("input", function () {
-  renderPills("pills", this.value);
-});
+  function setSaveBusy(busy) {
+    var btn = document.getElementById("save-btn");
+    btn.disabled    = busy;
+    btn.textContent = busy ? "Saving…" : "Save Changes";
+  }
 
-/* ── Load existing calculation to prefill form ──────────────────────────── */
-async function loadForEdit() {
-  try {
-    const res = await authFetch(`/calculations/${calcId}`);
-    if (!res) return;
+  function parseInputs(raw) {
+    var parts = String(raw).split(",").map(function (s) { return s.trim(); })
+                           .filter(function (s) { return s !== ""; });
+    if (parts.length < 2) return null;
+    var nums = parts.map(Number);
+    for (var i = 0; i < nums.length; i++) {
+      if (!isFinite(nums[i]) || isNaN(nums[i])) return null;
+    }
+    return nums;
+  }
 
-    if (res.status === 404) {
-      setError("Calculation not found.");
+  function renderPills(raw) {
+    var container = document.getElementById("pills");
+    if (!container) return;
+    var parts = String(raw).split(",").map(function (s) { return s.trim(); })
+                           .filter(function (s) { return s !== ""; });
+    container.innerHTML = parts.map(function (p) {
+      return '<span class="input-pill">' + p + "</span>";
+    }).join("");
+  }
+
+  function apiFetch(url, options) {
+    options = options || {};
+    return fetch(url, Object.assign({}, options, {
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }
+    }));
+  }
+
+  /* Live pill preview */
+  var inputsField = document.getElementById("inputs-field");
+  if (inputsField) {
+    inputsField.addEventListener("input", function () { renderPills(this.value); });
+  }
+
+  /* Load existing calc to prefill */
+  function loadForEdit() {
+    apiFetch("/calculations/" + calcId)
+      .then(function (res) {
+        if (res.status === 401) { window.location.href = "/login"; return; }
+        if (res.status === 404) { showError("Calculation not found."); return; }
+        return res.json().then(function (c) {
+          if (!res.ok) { showError("Failed to load calculation."); return; }
+          var raw = c.inputs.join(", ");
+          document.getElementById("operation").value    = c.type;
+          document.getElementById("inputs-field").value = raw;
+          renderPills(raw);
+          document.getElementById("edit-form").style.display = "block";
+        });
+      })
+      .catch(function (err) {
+        console.error("Load error:", err);
+        showError("Network error — could not load calculation.");
+      });
+  }
+
+  /* Save changes */
+  function doSave() {
+    showError("");
+    showSuccess("");
+
+    var type = document.getElementById("operation").value;
+    var raw  = document.getElementById("inputs-field").value;
+    var nums = parseInputs(raw);
+
+    if (!nums) {
+      showError("Enter at least 2 valid numbers separated by commas.");
       return;
     }
-    if (!res.ok) {
-      setError("Failed to load calculation.");
-      return;
+    if (type === "division") {
+      for (var i = 1; i < nums.length; i++) {
+        if (nums[i] === 0) { showError("Cannot divide by zero."); return; }
+      }
     }
 
-    const c   = await res.json();
-    const raw = c.inputs.join(", ");
+    setSaveBusy(true);
 
-    document.getElementById("operation").value    = c.type;
-    document.getElementById("inputs-field").value = raw;
-    renderPills("pills", raw);
-    document.getElementById("edit-form").style.display = "block";
-
-  } catch (err) {
-    setError("Network error — could not load calculation.");
-  }
-}
-
-/* ── Save changes (PUT) ─────────────────────────────────────────────────── */
-async function saveCalculation() {
-  setError("");
-  setSuccess("");
-
-  const type = document.getElementById("operation").value;
-  const raw  = document.getElementById("inputs-field").value;
-  const nums = parseInputs(raw);
-
-  if (!nums) {
-    setError("Enter at least 2 valid numbers separated by commas.");
-    return;
-  }
-  if (type === "division" && nums.slice(1).some(n => n === 0)) {
-    setError("Cannot divide by zero.");
-    return;
-  }
-
-  setSaveBusy(true);
-  try {
-    const res  = await authFetch(`/calculations/${calcId}`, {
+    apiFetch("/calculations/" + calcId, {
       method: "PUT",
-      body: JSON.stringify({ type, inputs: nums }),
+      body: JSON.stringify({ type: type, inputs: nums })
+    })
+    .then(function (res) {
+      if (res.status === 401) { window.location.href = "/login"; return; }
+      return res.json().then(function (data) {
+        if (!res.ok) {
+          var msg = Array.isArray(data.detail)
+            ? data.detail.map(function (e) { return e.msg; }).join(" | ")
+            : (data.detail || "Update failed.");
+          showError(msg);
+          setSaveBusy(false);
+          return;
+        }
+        showSuccess("Updated! New result: " + data.result + ". Redirecting…");
+        setTimeout(function () { window.location.href = "/dashboard"; }, 1500);
+      });
+    })
+    .catch(function (err) {
+      console.error("Save error:", err);
+      showError("Network error — could not save changes.");
+      setSaveBusy(false);
     });
-    if (!res) return;
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      const msg = Array.isArray(data.detail)
-        ? data.detail.map(e => e.msg).join(" | ")
-        : data.detail || "Update failed.";
-      setError(msg);
-      return;
-    }
-
-    setSuccess(`Updated! New result: ${data.result}. Redirecting…`);
-    setTimeout(() => { window.location.href = "/dashboard"; }, 1500);
-
-  } catch (err) {
-    setError("Network error — could not save changes.");
-  } finally {
-    setSaveBusy(false);
   }
-}
 
-/* ── Wire up Save button ────────────────────────────────────────────────── */
-document.getElementById("save-btn").addEventListener("click", saveCalculation);
+  /* Wire Save button */
+  var saveBtn = document.getElementById("save-btn");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", doSave);
+  }
 
-/* ── Initial load ───────────────────────────────────────────────────────── */
-loadForEdit();
+  loadForEdit();
+
+}); /* end DOMContentLoaded */
 </script>
 {% endblock %}
