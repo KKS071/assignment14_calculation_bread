@@ -1,60 +1,94 @@
 # File: docs/reflection.md
-# Purpose: Student reflection on Module 14 — BREAD functionality, testing, CI/CD, Docker, security.
+# Purpose: Student reflection on Module 14 — BREAD, multi-value calculations, testing, CI/CD.
 
 # Module 14 Reflection
 
 ## What I Built
 
-For this assignment I implemented full BREAD (Browse, Read, Edit, Add, Delete) functionality for a FastAPI-based calculation app backed by PostgreSQL. The app uses JWT authentication, a polymorphic SQLAlchemy model for different operation types, Pydantic schemas for validation, and a lightweight Jinja2/JS frontend. I also wired up a three-stage GitHub Actions CI/CD pipeline: pytest → Trivy scan → Docker Hub push.
+I extended a FastAPI + PostgreSQL calculator app to support full BREAD operations (Browse, Read,
+Edit, Add, Delete) with JWT authentication and a Jinja2/JS frontend. The major new feature this
+iteration was **multi-value inputs** — instead of always requiring exactly two numbers, the API and
+frontend now accept any number of comma-separated values (minimum two), making calculations like
+`120 ÷ 2 ÷ 3 ÷ 4 = 5` possible in a single request. I also replaced the abacus logo with a proper
+calculator SVG icon, wired up a full Playwright E2E suite that auto-starts the server, and reached
+100% pytest coverage.
 
 ---
 
 ## Key Experiences
 
-### BREAD Endpoints
+### Multi-value Calculation Logic
 
-Getting the five endpoints right took more thought than I expected. The trickiest part was the **Edit** endpoint — when a user changes both the `type` and `inputs`, I need to update the discriminator column *and* recompute the result using the correct subclass logic. I handled this by using the factory method `Calculation.create()` to get a temporary subclass instance for the arithmetic, then writing the result back to the persisted row.
+The Pydantic schema validator `coerce_inputs` was the right place to handle the comma-string
+`"10, 5, 3"` → `[10.0, 5.0, 3.0]` conversion, because it runs before the model is constructed and
+gives the frontend and API clients a consistent interface. Each model subclass (`Addition`,
+`Subtraction`, `Multiplication`, `Division`) already iterated over a list, so the only change
+needed there was removing the hardcoded two-element assumption and replacing it with a loop from
+index `[0]` downward. The division subclass still checks every element from index `[1:]` for zero.
 
-### Polymorphic Inheritance
+### Polymorphic Update Without ORM Identity Mismatch
 
-SQLAlchemy's single-table inheritance with a `polymorphic_identity` on `type` is elegant once it clicks. Getting `get_result()` to dispatch to the right subclass at query time was satisfying — it keeps business logic inside the model where it belongs and keeps the route handlers thin.
+The biggest technical bug I fixed was the SQLAlchemy warning:
+`Flushing object <Addition> with incompatible polymorphic identity <multiplication>`.
+Setting `calc.type = "multiplication"` on an existing `Addition` ORM instance confuses the
+mapper because the Python object's class no longer matches the discriminator value. The clean fix
+is to skip the ORM entirely for updates and use SQLAlchemy's **core** `update()` statement, then
+re-query the updated row. This means no ORM object ever has a mismatched identity.
 
-### JWT Auth
+### Playwright E2E With Auto-Starting Server
 
-I reinforced the difference between **access tokens** (short-lived, for API calls) and **refresh tokens** (longer-lived, for re-auth). One bug I chased was timezone-aware vs naive datetimes in token expiry checks — the fix was consistently using `datetime.now(timezone.utc)` everywhere.
+The original E2E setup required a running dev server before running tests, which broke CI. I fixed
+this by adding a `_ServerThread` in `tests/e2e/conftest.py` that starts `uvicorn.Server` as a
+daemon thread bound to port 8001 at session scope. A `_wait_for_server()` TCP check blocks until
+the port is accepting connections before the first test runs. This makes `pytest` fully self-contained — no manual startup step needed, locally or in GitHub Actions.
+
+### Frontend Multi-value UX
+
+Displaying multiple inputs as coloured pills (`<span class="input-pill">10</span>`) via the
+`renderPills()` JS helper was a small detail that significantly improves readability in the browse
+table and detail view. The `parseInputs()` helper validates the comma string client-side before
+any fetch is made, so users see an inline error immediately rather than waiting for an API round-trip.
 
 ### 100% Test Coverage
 
-Reaching 100% coverage meant writing tests for paths I initially skipped — invalid UUIDs, divide-by-zero guard in the update route, cross-user access attempts, and the `database_init` helper functions. The trickiest coverage gap was the `create_token` error branch, which I covered by mocking `jwt.encode` to raise an exception.
-
-### Playwright E2E Tests
-
-Setting up Playwright in CI required installing Chromium browser binaries separately (`playwright install --with-deps chromium`) and starting the server before running tests. I used `continue-on-error: true` for the E2E step so a flaky browser test doesn't block the Docker push.
-
-### Docker + Docker Compose
-
-Running `docker compose up --build` with a health check on the Postgres container before the web service starts was important — without `depends_on: condition: service_healthy`, the app tried to connect before the DB was ready and crashed.
-
-### Trivy Vulnerability Scan
-
-Trivy flagged a few `CRITICAL` packages in the base Python image. Pinning `setuptools >= 70.0.0` and running `apt-get upgrade -y` in the Dockerfile brought those counts down significantly.
+Reaching 100% coverage required targeting specific branches I had initially skipped — particularly
+the `NotImplementedError` in the abstract base `Calculation.get_result()`, the `no sub` claim path
+in the JWT dependency, and the password-strength validator branches for "no digit" and "no
+lowercase". Mocking `jwt.encode` to raise an exception was the cleanest way to cover the
+`create_token` error path without altering production code.
 
 ---
 
 ## Challenges
 
-- **Timezone naive/aware datetime mismatch** in token expiry — subtle but broke login.
-- **Polymorphic updates** — updating `type` on an existing row doesn't automatically call the new subclass's `__init__`, so the result had to be recomputed manually.
-- **Test isolation** — using transactional rollbacks per test was critical; without it, user-uniqueness constraints caused random failures depending on test ordering.
+- **Timezone-aware vs naive datetimes** — `datetime.now(timezone.utc)` vs `datetime.utcnow()` mixed
+  in different files caused subtle token expiry validation failures. Standardised on `timezone.utc`
+  everywhere in auth code.
+
+- **Transactional test isolation** — using `session.begin_nested()` (a `SAVEPOINT`) instead of a
+  plain outer transaction prevents the `transaction already deassociated` SAWarning when a test
+  triggers a DB-level rollback inside the route handler.
+
+- **Playwright selector reliability** — the first E2E iteration used broad CSS selectors like
+  `button[type=submit]` that matched multiple elements. Switching to `onclick` attribute selectors
+  (`button[onclick='handleLogin()']`) and explicit IDs (`#calculate-btn`, `#save-btn`) made tests
+  deterministic.
 
 ---
 
 ## What I Learned
 
-- **CLO3** — Automated testing with `pytest` + `pytest-cov` gives real confidence that all code paths work.
-- **CLO4** — GitHub Actions makes it easy to run tests on every push and block bad code from being shipped.
-- **CLO9** — Docker makes the app reproducible; anyone can run it with `docker compose up --build`.
-- **CLO10** — FastAPI's dependency injection + Pydantic makes building validated REST APIs much cleaner than doing it manually.
-- **CLO11** — SQLAlchemy's ORM handles the SQL boilerplate, but understanding raw SQL still helps when debugging.
-- **CLO12** — Pydantic v2 validators catch bad input before it ever hits the database.
-- **CLO13** — bcrypt hashing + short-lived JWTs + user-scoped DB queries are the three pillars of keeping this app secure.
+- **CLO3** — pytest fixtures with transactional rollbacks give fast, isolated tests without
+  teardown boilerplate.
+- **CLO4** — GitHub Actions matrix is powerful: running Postgres as a service container with a
+  health check, installing playwright browsers, and pushing to Docker Hub all in one YAML file.
+- **CLO9** — Docker multi-stage builds and `--break-system-packages` pip flags are important for
+  clean Debian-based images.
+- **CLO10** — FastAPI's dependency injection and OpenAPI docstring support make self-documenting
+  APIs almost effortless.
+- **CLO11** — SQLAlchemy's polymorphic single-table inheritance is elegant but requires care when
+  updating the discriminator column — the core `update()` bypass is the correct pattern.
+- **CLO12** — Pydantic v2 `@field_validator(mode="before")` is the right hook for input coercion
+  (string → list of floats) before model construction.
+- **CLO13** — Short-lived JWT access tokens + user-scoped DB queries (`filter(user_id == current_user.id)`)
+  are the two most important security primitives in this app.

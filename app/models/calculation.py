@@ -1,5 +1,6 @@
 # File: app/models/calculation.py
-# Purpose: SQLAlchemy models for calculations using single-table polymorphic inheritance.
+# Purpose: SQLAlchemy models for calculations — single-table polymorphic inheritance.
+#          All operations accept a list of 2+ floats (multi-value support).
 import uuid
 from datetime import datetime
 from typing import List
@@ -59,10 +60,10 @@ class AbstractCalculation:
     def create(cls, calculation_type: str, user_id: uuid.UUID, inputs: List[float]) -> "Calculation":
         """Factory: return the right subclass for the given calculation_type."""
         classes = {
-            "addition": Addition,
-            "subtraction": Subtraction,
+            "addition":       Addition,
+            "subtraction":    Subtraction,
             "multiplication": Multiplication,
-            "division": Division,
+            "division":       Division,
         }
         klass = classes.get(calculation_type.lower())
         if not klass:
@@ -78,7 +79,7 @@ class AbstractCalculation:
 
 class Calculation(Base, AbstractCalculation):
     __mapper_args__ = {
-        "polymorphic_on": "type",
+        "polymorphic_on":       "type",
         "polymorphic_identity": "calculation",
     }
 
@@ -90,8 +91,8 @@ class Addition(Calculation):
         if not isinstance(self.inputs, list):
             raise ValueError("Inputs must be a list of numbers.")
         if len(self.inputs) < 2:
-            raise ValueError("Inputs must be a list with at least two numbers.")
-        return sum(self.inputs)
+            raise ValueError("At least two numbers are required.")
+        return sum(float(x) for x in self.inputs)
 
 
 class Subtraction(Calculation):
@@ -101,10 +102,10 @@ class Subtraction(Calculation):
         if not isinstance(self.inputs, list):
             raise ValueError("Inputs must be a list of numbers.")
         if len(self.inputs) < 2:
-            raise ValueError("Inputs must be a list with at least two numbers.")
-        result = self.inputs[0]
+            raise ValueError("At least two numbers are required.")
+        result = float(self.inputs[0])
         for v in self.inputs[1:]:
-            result -= v
+            result -= float(v)
         return result
 
 
@@ -115,10 +116,10 @@ class Multiplication(Calculation):
         if not isinstance(self.inputs, list):
             raise ValueError("Inputs must be a list of numbers.")
         if len(self.inputs) < 2:
-            raise ValueError("Inputs must be a list with at least two numbers.")
-        result = 1
+            raise ValueError("At least two numbers are required.")
+        result = 1.0
         for v in self.inputs:
-            result *= v
+            result *= float(v)
         return result
 
 
@@ -129,10 +130,10 @@ class Division(Calculation):
         if not isinstance(self.inputs, list):
             raise ValueError("Inputs must be a list of numbers.")
         if len(self.inputs) < 2:
-            raise ValueError("Inputs must be a list with at least two numbers.")
-        result = self.inputs[0]
+            raise ValueError("At least two numbers are required.")
+        result = float(self.inputs[0])
         for v in self.inputs[1:]:
-            if v == 0:
+            if float(v) == 0:
                 raise ValueError("Cannot divide by zero.")
-            result /= v
+            result /= float(v)
         return result

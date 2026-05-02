@@ -1,13 +1,12 @@
 <!-- File: templates/edit_calculation.html -->
-<!-- Purpose: Edit an existing calculation (BREAD: Edit) — prefills form, then PUT. -->
+<!-- Purpose: Edit — prefills multi-value form, then PUT to update calculation. -->
 {% extends "base.html" %}
-
-{% block title %}CalcApp – Edit Calculation{% endblock %}
+{% block title %}CalcApp — Edit Calculation{% endblock %}
 
 {% block content %}
 <div class="card detail-card">
   <h2>Edit Calculation</h2>
-  <div id="error-msg" class="alert alert-error" style="display:none"></div>
+  <div id="error-msg"   class="alert alert-error"   style="display:none"></div>
   <div id="success-msg" class="alert alert-success" style="display:none"></div>
 
   <div id="edit-form" style="display:none">
@@ -21,15 +20,12 @@
       </select>
     </div>
     <div class="form-group">
-      <label for="num1">Number 1</label>
-      <input id="num1" name="num1" type="number" step="any" />
-    </div>
-    <div class="form-group">
-      <label for="num2">Number 2</label>
-      <input id="num2" name="num2" type="number" step="any" />
+      <label for="inputs-field">Numbers <span class="text-muted">(comma-separated, min 2)</span></label>
+      <input id="inputs-field" type="text" placeholder="e.g. 10, 5, 2" oninput="renderPills('pills', this.value)" />
+      <div class="inputs-preview" id="pills"></div>
     </div>
     <div class="form-actions">
-      <a href="/dashboard" class="btn btn-secondary">Cancel</a>
+      <a href="/dashboard" class="btn btn-ghost">Cancel</a>
       <button id="save-btn" class="btn btn-primary" onclick="saveCalculation()">Save Changes</button>
     </div>
   </div>
@@ -40,73 +36,47 @@
 <script>
 const token  = localStorage.getItem("access_token");
 if (!token) window.location.href = "/login";
-
 const calcId = "{{ calc_id }}";
 
 async function loadForEdit() {
-  try {
-    const res = await fetch(`/calculations/${calcId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.status === 401) { window.location.href = "/login"; return; }
-    if (res.status === 404) {
-      showError("Calculation not found.");
-      return;
-    }
-    const c = await res.json();
-    document.getElementById("operation").value = c.type;
-    document.getElementById("num1").value = c.inputs[0] ?? "";
-    document.getElementById("num2").value = c.inputs[1] ?? "";
-    document.getElementById("edit-form").style.display = "block";
-  } catch {
-    showError("Failed to load calculation.");
-  }
+  const res = await authFetch(`/calculations/${calcId}`);
+  if (!res) return;
+  if (res.status === 404) { showMsg("error-msg", "Calculation not found."); return; }
+  const c = await res.json();
+  document.getElementById("operation").value  = c.type;
+  const raw = c.inputs.join(", ");
+  document.getElementById("inputs-field").value = raw;
+  renderPills("pills", raw);
+  document.getElementById("edit-form").style.display = "block";
 }
 
 async function saveCalculation() {
-  document.getElementById("error-msg").style.display  = "none";
-  document.getElementById("success-msg").style.display = "none";
+  showMsg("error-msg",   "");
+  showMsg("success-msg", "");
 
   const type = document.getElementById("operation").value;
-  const num1 = parseFloat(document.getElementById("num1").value);
-  const num2 = parseFloat(document.getElementById("num2").value);
+  const raw  = document.getElementById("inputs-field").value;
+  const nums = parseInputs(raw);
 
-  if (isNaN(num1) || isNaN(num2)) {
-    showError("Please enter valid numbers.");
-    return;
-  }
-  if (type === "division" && num2 === 0) {
-    showError("Cannot divide by zero.");
-    return;
+  if (!nums) { showMsg("error-msg", "Enter at least 2 valid numbers separated by commas."); return; }
+  if (type === "division" && nums.slice(1).some(n => n === 0)) {
+    showMsg("error-msg", "Cannot divide by zero."); return;
   }
 
-  try {
-    const res = await fetch(`/calculations/${calcId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ type, inputs: [num1, num2] }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      const msg = Array.isArray(data.detail)
-        ? data.detail.map(e => e.msg).join("; ")
-        : data.detail || "Update failed.";
-      showError(msg);
-      return;
-    }
-    const el = document.getElementById("success-msg");
-    el.textContent = `Updated! New result: ${data.result}`;
-    el.style.display = "block";
-    setTimeout(() => window.location.href = "/dashboard", 1500);
-  } catch {
-    showError("Network error.");
-  }
-}
+  const res  = await authFetch(`/calculations/${calcId}`, {
+    method: "PUT",
+    body: JSON.stringify({ type, inputs: nums }),
+  });
+  if (!res) return;
+  const data = await res.json();
 
-function showError(msg) {
-  const el = document.getElementById("error-msg");
-  el.textContent = msg;
-  el.style.display = "block";
+  if (!res.ok) {
+    const msg = Array.isArray(data.detail) ? data.detail.map(e=>e.msg).join(" | ") : data.detail||"Update failed.";
+    showMsg("error-msg", msg); return;
+  }
+
+  showMsg("success-msg", `Updated! New result: ${data.result}. Redirecting…`);
+  setTimeout(() => window.location.href = "/dashboard", 1500);
 }
 
 loadForEdit();

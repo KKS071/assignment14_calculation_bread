@@ -1,44 +1,54 @@
 <!-- File: templates/register.html -->
-<!-- Purpose: Registration page — validates inputs and posts to /auth/register. -->
+<!-- Purpose: Registration page — validates inputs client-side then posts to /auth/register. -->
 {% extends "base.html" %}
-
-{% block title %}CalcApp – Register{% endblock %}
+{% block title %}CalcApp — Register{% endblock %}
 
 {% block content %}
 <div class="auth-card">
+  <div class="auth-icon">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="2" width="16" height="20" rx="2"/>
+      <line x1="8" y1="6" x2="16" y2="6"/>
+      <line x1="8" y1="10" x2="10" y2="10"/>
+      <line x1="14" y1="10" x2="16" y2="10"/>
+      <line x1="8" y1="14" x2="10" y2="14"/>
+      <line x1="14" y1="14" x2="16" y2="14"/>
+      <line x1="8" y1="18" x2="10" y2="18"/>
+      <line x1="14" y1="18" x2="16" y2="18"/>
+    </svg>
+  </div>
   <h2>Create Account</h2>
-  <div id="error-msg" class="alert alert-error" style="display:none"></div>
+
+  <div id="error-msg"   class="alert alert-error"   style="display:none"></div>
   <div id="success-msg" class="alert alert-success" style="display:none"></div>
 
-  <div id="register-form">
-    <div class="form-row">
-      <div class="form-group">
-        <label for="first_name">First Name</label>
-        <input id="first_name" type="text" placeholder="First name" />
-      </div>
-      <div class="form-group">
-        <label for="last_name">Last Name</label>
-        <input id="last_name" type="text" placeholder="Last name" />
-      </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label for="first_name">First Name</label>
+      <input id="first_name" type="text" placeholder="First name" />
     </div>
     <div class="form-group">
-      <label for="email">Email</label>
-      <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+      <label for="last_name">Last Name</label>
+      <input id="last_name" type="text" placeholder="Last name" />
     </div>
-    <div class="form-group">
-      <label for="username">Username</label>
-      <input id="username" type="text" placeholder="Choose a username" autocomplete="username" />
-    </div>
-    <div class="form-group">
-      <label for="password">Password</label>
-      <input id="password" type="password" placeholder="Min 8 chars, upper, lower, digit, symbol" autocomplete="new-password" />
-    </div>
-    <div class="form-group">
-      <label for="confirm_password">Confirm Password</label>
-      <input id="confirm_password" type="password" placeholder="Repeat password" autocomplete="new-password" />
-    </div>
-    <button class="btn btn-primary btn-full" onclick="handleRegister()">Register</button>
   </div>
+  <div class="form-group">
+    <label for="email">Email</label>
+    <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+  </div>
+  <div class="form-group">
+    <label for="username">Username</label>
+    <input id="username" type="text" placeholder="Choose a username" autocomplete="username" />
+  </div>
+  <div class="form-group">
+    <label for="password">Password</label>
+    <input id="password" type="password" placeholder="Min 8 chars, upper, lower, digit, symbol" autocomplete="new-password" />
+  </div>
+  <div class="form-group">
+    <label for="confirm_password">Confirm Password</label>
+    <input id="confirm_password" type="password" placeholder="Repeat password" autocomplete="new-password" />
+  </div>
+  <button class="btn btn-primary btn-full" onclick="handleRegister()">Create Account</button>
 
   <p class="auth-link">Already have an account? <a href="/login">Login</a></p>
 </div>
@@ -47,60 +57,42 @@
 {% block scripts %}
 <script>
 async function handleRegister() {
-  const errorEl  = document.getElementById("error-msg");
-  const successEl = document.getElementById("success-msg");
-  errorEl.style.display = "none";
-  successEl.style.display = "none";
+  showMsg("error-msg",   "");
+  showMsg("success-msg", "");
 
-  const first_name      = document.getElementById("first_name").value.trim();
-  const last_name       = document.getElementById("last_name").value.trim();
-  const email           = document.getElementById("email").value.trim();
-  const username        = document.getElementById("username").value.trim();
-  const password        = document.getElementById("password").value;
+  const first_name       = document.getElementById("first_name").value.trim();
+  const last_name        = document.getElementById("last_name").value.trim();
+  const email            = document.getElementById("email").value.trim();
+  const username         = document.getElementById("username").value.trim();
+  const password         = document.getElementById("password").value;
   const confirm_password = document.getElementById("confirm_password").value;
 
   if (!first_name || !last_name || !email || !username || !password || !confirm_password) {
-    showError("All fields are required.");
-    return;
+    showMsg("error-msg", "All fields are required."); return;
   }
   if (password !== confirm_password) {
-    showError("Passwords do not match.");
-    return;
+    showMsg("error-msg", "Passwords do not match."); return;
   }
   if (password.length < 8) {
-    showError("Password must be at least 8 characters.");
-    return;
+    showMsg("error-msg", "Password must be at least 8 characters."); return;
   }
 
-  try {
-    const res = await fetch("/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ first_name, last_name, email, username, password, confirm_password }),
-    });
+  const res  = await fetch("/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ first_name, last_name, email, username, password, confirm_password }),
+  });
+  const data = await res.json();
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      const detail = Array.isArray(data.detail)
-        ? data.detail.map(e => e.msg).join("; ")
-        : data.detail || "Registration failed.";
-      showError(detail);
-      return;
-    }
-
-    successEl.textContent = "Account created! Redirecting to login…";
-    successEl.style.display = "block";
-    setTimeout(() => window.location.href = "/login", 1500);
-  } catch {
-    showError("Network error. Please try again.");
+  if (!res.ok) {
+    const detail = Array.isArray(data.detail)
+      ? data.detail.map(e => e.msg).join(" | ")
+      : data.detail || "Registration failed.";
+    showMsg("error-msg", detail); return;
   }
-}
 
-function showError(msg) {
-  const el = document.getElementById("error-msg");
-  el.textContent = msg;
-  el.style.display = "block";
+  showMsg("success-msg", "Account created! Redirecting to login…");
+  setTimeout(() => window.location.href = "/login", 1500);
 }
 </script>
 {% endblock %}

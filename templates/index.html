@@ -1,31 +1,46 @@
 <!-- File: templates/index.html -->
-<!-- Purpose: Public landing page. -->
+<!-- Purpose: Public landing page with calculator hero icon. -->
 {% extends "base.html" %}
-
-{% block title %}CalcApp – Home{% endblock %}
+{% block title %}CalcApp — Home{% endblock %}
 
 {% block content %}
 <section class="hero">
-  <h1>Calculator BREAD App</h1>
-  <p>Create, read, edit, and delete your calculations with full JWT-secured API access.</p>
+  <div class="hero-icon">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="2" width="16" height="20" rx="2"/>
+      <line x1="8" y1="6" x2="16" y2="6"/>
+      <line x1="8" y1="10" x2="10" y2="10"/>
+      <line x1="14" y1="10" x2="16" y2="10"/>
+      <line x1="8" y1="14" x2="10" y2="14"/>
+      <line x1="14" y1="14" x2="16" y2="14"/>
+      <line x1="8" y1="18" x2="10" y2="18"/>
+      <line x1="14" y1="18" x2="16" y2="18"/>
+    </svg>
+  </div>
+  <h1>CalcApp — BREAD Calculator</h1>
+  <p>Create, view, edit, and delete calculations on any number of values. Secured with JWT auth and backed by FastAPI + PostgreSQL.</p>
   <div class="hero-actions">
     <a class="btn btn-primary" href="/register">Get Started</a>
-    <a class="btn btn-secondary" href="/login">Login</a>
+    <a class="btn btn-ghost"   href="/login">Login</a>
   </div>
 </section>
 
 <section class="features">
   <div class="feature-card">
+    <h3>🔢 Multi-value</h3>
+    <p>Add, subtract, multiply or divide across unlimited comma-separated values.</p>
+  </div>
+  <div class="feature-card">
     <h3>🔐 Secure</h3>
-    <p>JWT authentication keeps your calculations private.</p>
+    <p>JWT access tokens keep your calculations private and user-scoped.</p>
   </div>
   <div class="feature-card">
-    <h3>➕ BREAD Operations</h3>
-    <p>Browse, Read, Edit, Add, and Delete all your calculations.</p>
+    <h3>⚡ BREAD API</h3>
+    <p>Full Browse, Read, Edit, Add, Delete operations via REST API.</p>
   </div>
   <div class="feature-card">
-    <h3>⚡ Fast</h3>
-    <p>Built on FastAPI for lightning-fast REST API responses.</p>
+    <h3>🐳 Dockerised</h3>
+    <p>Run everything with <code>docker compose up --build</code>.</p>
   </div>
 </section>
 {% endblock %}

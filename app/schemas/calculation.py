@@ -1,5 +1,6 @@
 # File: app/schemas/calculation.py
 # Purpose: Pydantic schemas for creating, updating, and returning calculations.
+# Inputs is a list of at least 2 floats (supports unlimited comma-separated values).
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
@@ -29,15 +30,21 @@ class CalculationBase(BaseModel):
 
     @field_validator("inputs", mode="before")
     @classmethod
-    def check_inputs_is_list(cls, v):
+    def coerce_inputs(cls, v):
+        # Accept a comma-separated string like "1,2,3" in addition to a list
+        if isinstance(v, str):
+            try:
+                v = [float(x.strip()) for x in v.split(",") if x.strip()]
+            except ValueError:
+                raise ValueError("All inputs must be valid numbers separated by commas")
         if not isinstance(v, list):
-            raise ValueError("Input should be a valid list")
+            raise ValueError("Inputs must be a list of numbers")
         return v
 
     @model_validator(mode="after")
     def validate_inputs(self) -> "CalculationBase":
         if len(self.inputs) < 2:
-            raise ValueError("At least two numbers are required for calculation")
+            raise ValueError("At least two numbers are required")
         if self.type == CalculationType.DIVISION:
             if any(x == 0 for x in self.inputs[1:]):
                 raise ValueError("Cannot divide by zero")
@@ -64,10 +71,24 @@ class CalculationUpdate(BaseModel):
             raise ValueError(f"Type must be one of: {', '.join(sorted(allowed))}")
         return v.lower()
 
+    @field_validator("inputs", mode="before")
+    @classmethod
+    def coerce_inputs(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            try:
+                v = [float(x.strip()) for x in v.split(",") if x.strip()]
+            except ValueError:
+                raise ValueError("All inputs must be valid numbers")
+        if not isinstance(v, list):
+            raise ValueError("Inputs must be a list of numbers")
+        return v
+
     @model_validator(mode="after")
     def validate_inputs(self) -> "CalculationUpdate":
         if self.inputs is not None and len(self.inputs) < 2:
-            raise ValueError("At least two numbers are required for calculation")
+            raise ValueError("At least two numbers are required")
         return self
 
     model_config = ConfigDict(from_attributes=True)

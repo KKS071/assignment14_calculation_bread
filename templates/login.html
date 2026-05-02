@@ -1,77 +1,65 @@
 <!-- File: templates/login.html -->
-<!-- Purpose: Login page — posts credentials to /auth/login and stores the JWT. -->
+<!-- Purpose: Login page — posts credentials to /auth/login. -->
 {% extends "base.html" %}
-
-{% block title %}CalcApp – Login{% endblock %}
+{% block title %}CalcApp — Login{% endblock %}
 
 {% block content %}
 <div class="auth-card">
-  <h2>Login</h2>
-  <div id="error-msg" class="alert alert-error" style="display:none"></div>
-
-  <div id="login-form">
-    <div class="form-group">
-      <label for="username">Username or Email</label>
-      <input id="username" type="text" placeholder="Enter username or email" autocomplete="username" />
-    </div>
-    <div class="form-group">
-      <label for="password">Password</label>
-      <input id="password" type="password" placeholder="Enter password" autocomplete="current-password" />
-    </div>
-    <button class="btn btn-primary btn-full" onclick="handleLogin()">Login</button>
+  <div class="auth-icon">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="2" width="16" height="20" rx="2"/>
+      <line x1="8" y1="6" x2="16" y2="6"/>
+      <line x1="8" y1="10" x2="10" y2="10"/>
+      <line x1="14" y1="10" x2="16" y2="10"/>
+      <line x1="8" y1="14" x2="10" y2="14"/>
+      <line x1="14" y1="14" x2="16" y2="14"/>
+      <line x1="8" y1="18" x2="10" y2="18"/>
+      <line x1="14" y1="18" x2="16" y2="18"/>
+    </svg>
   </div>
+  <h2>Login</h2>
 
-  <p class="auth-link">Don't have an account? <a href="/register">Register</a></p>
+  <div id="error-msg" class="alert alert-error"   style="display:none"></div>
+
+  <div class="form-group">
+    <label for="username">Username or Email</label>
+    <input id="username" type="text" placeholder="Enter username or email" autocomplete="username" />
+  </div>
+  <div class="form-group">
+    <label for="password">Password</label>
+    <input id="password" type="password" placeholder="Enter password" autocomplete="current-password" />
+  </div>
+  <button class="btn btn-primary btn-full" onclick="handleLogin()">Login</button>
+
+  <p class="auth-link">No account? <a href="/register">Register</a></p>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 async function handleLogin() {
+  showMsg("error-msg", "");
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
-  const errorEl = document.getElementById("error-msg");
 
-  errorEl.style.display = "none";
+  if (!username || !password) { showMsg("error-msg", "Please fill in all fields."); return; }
 
-  if (!username || !password) {
-    showError("Please fill in all fields.");
-    return;
-  }
+  const res  = await fetch("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  const data = await res.json();
 
-  try {
-    const res = await fetch("/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
+  if (!res.ok) { showMsg("error-msg", data.detail || "Login failed."); return; }
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      showError(data.detail || "Login failed.");
-      return;
-    }
-
-    localStorage.setItem("access_token", data.access_token);
-    localStorage.setItem("refresh_token", data.refresh_token);
-    localStorage.setItem("user_id", data.user_id);
-    localStorage.setItem("username", data.username);
-
-    window.location.href = "/dashboard";
-  } catch {
-    showError("Network error. Please try again.");
-  }
+  localStorage.setItem("access_token",  data.access_token);
+  localStorage.setItem("refresh_token", data.refresh_token);
+  localStorage.setItem("user_id",       data.user_id);
+  localStorage.setItem("username",      data.username);
+  window.location.href = "/dashboard";
 }
 
-function showError(msg) {
-  const el = document.getElementById("error-msg");
-  el.textContent = msg;
-  el.style.display = "block";
-}
-
-document.addEventListener("keydown", e => {
-  if (e.key === "Enter") handleLogin();
-});
+document.addEventListener("keydown", e => { if (e.key === "Enter") handleLogin(); });
 </script>
 {% endblock %}
